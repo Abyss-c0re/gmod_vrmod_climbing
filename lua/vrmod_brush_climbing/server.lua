@@ -39,7 +39,7 @@ if SERVER then
 	local svArmSwingJumpCooldown = CreateConVar("sv_vrmod_armswing_jump_cooldown", "0.14", {FCVAR_ARCHIVE, FCVAR_NOTIFY, FCVAR_REPLICATED}, "Cooldown between arm swing jumps", 0.05, 1)
 	local svSlideEnable = CreateConVar("sv_vrmod_slide_enable", "1", {FCVAR_ARCHIVE, FCVAR_NOTIFY, FCVAR_REPLICATED}, "Enable VRMod sliding", 0, 1)
 	local svSlideMinSpeed = CreateConVar("sv_vrmod_slide_min_speed", "150", {FCVAR_ARCHIVE, FCVAR_NOTIFY, FCVAR_REPLICATED}, "Minimum horizontal speed to enter a slide", 0, 800)
-	local svSlideFriction = CreateConVar("sv_vrmod_slide_friction", "40", {FCVAR_ARCHIVE, FCVAR_NOTIFY, FCVAR_REPLICATED}, "Horizontal deceleration while sliding (units/s^2)", 0, 600)
+	local svSlideFriction = CreateConVar("sv_vrmod_slide_friction", "100", {FCVAR_ARCHIVE, FCVAR_NOTIFY, FCVAR_REPLICATED}, "Horizontal deceleration while sliding (units/s^2)", 0, 600)
 	local svSlideAirBoost = CreateConVar("sv_vrmod_slide_air_boost", "80", {FCVAR_ARCHIVE, FCVAR_NOTIFY, FCVAR_REPLICATED}, "Speed boost added when landing into a slide from the air", 0, 600)
 	local svSlideStopSpeed = CreateConVar("sv_vrmod_slide_stop_speed", "60", {FCVAR_ARCHIVE, FCVAR_NOTIFY, FCVAR_REPLICATED}, "Speed below which a slide automatically ends", 0, 400)
 	local svSlideEntryBoost = CreateConVar("sv_vrmod_slide_entry_boost", "60", {FCVAR_ARCHIVE, FCVAR_NOTIFY, FCVAR_REPLICATED}, "Flat speed bonus added the moment a slide begins", 0, 600)

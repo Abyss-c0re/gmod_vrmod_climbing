@@ -13,6 +13,7 @@ return function(ctx)
 	local AnyHandHolding = ctx.AnyHandHolding
 	local PickSound = ctx.PickSound
 	local slideLoopPatch = nil
+	-- Stop slide loop sound
 	local function StopSlideLoopSound()
 		if slideLoopPatch then
 			slideLoopPatch:Stop()
@@ -20,6 +21,7 @@ return function(ctx)
 		end
 	end
 
+	-- Ensure slide loop sound is playing
 	local function EnsureSlideLoopSound()
 		if not (cvUseSounds:GetBool() and cvSlideSoundEnable:GetBool()) then
 			StopSlideLoopSound()
@@ -41,6 +43,7 @@ return function(ctx)
 		end
 	end
 
+	-- Main slide update function
 	local function UpdateSlide()
 		if not cvSlideEnable:GetBool() then
 			if state.slideActive then
@@ -73,37 +76,62 @@ return function(ctx)
 
 		local hmd = g_VR.tracking.hmd
 		if not hmd then return end
-		local vel = ply:GetVelocity()
-		local flatSpeed = Vector(vel.x, vel.y, 0):Length()
-		local minSlideSpeed = GetServerConVarFloat("sv_vrmod_slide_min_speed", 150)
-		local canPlaySlideSound = ply:IsOnGround() and flatSpeed >= minSlideSpeed
+		local plyVel = ply:GetVelocity()
+		local flatVel = Vector(plyVel.x, plyVel.y, 0)
+		local flatSpeed = flatVel:Length()
+		local minSlideSpeed = GetServerConVarFloat("sv_vrmod_slide_min_speed", 90)
+		local maxSlideSpeed = GetServerConVarFloat("sv_vrmod_slide_max_speed", 400) -- new max speed
+		-- Check if player is crouched below slide height
 		local isLow = hmd.pos.z - g_VR.origin.z <= cvSlideHeadHeight:GetFloat()
-		if isLow == state.slideActive then
-			if isLow and canPlaySlideSound then
-				if not (slideLoopPatch and slideLoopPatch:IsPlaying()) then PickSound(slideStartSounds, cvSlideSoundVolume:GetFloat()) end
+		local shouldSlide = isLow and flatSpeed >= minSlideSpeed
+		-- Update slide state and sounds
+		if shouldSlide ~= state.slideActive then
+			state.slideActive = shouldSlide
+			if shouldSlide then
+				PickSound(slideStartSounds, cvSlideSoundVolume:GetFloat())
 				EnsureSlideLoopSound()
 			else
 				StopSlideLoopSound()
 			end
-			return
 		end
 
-		state.slideActive = isLow
-		if isLow and canPlaySlideSound then
-			PickSound(slideStartSounds, cvSlideSoundVolume:GetFloat())
-			EnsureSlideLoopSound()
-		else
-			StopSlideLoopSound()
+		-- Apply sliding movement and friction
+		if state.slideActive then
+			-- Clamp velocity to maxSlideSpeed
+			if flatSpeed > maxSlideSpeed then
+				flatVel:Normalize()
+				flatVel = flatVel * maxSlideSpeed
+			end
+
+			-- Apply friction scaled by FrameTime
+			local frictionPerSecond = GetServerConVarFloat("sv_vrmod_slide_friction") -- units/sec per second, adjust for your scale
+			local frictionThisFrame = frictionPerSecond * FrameTime()
+			local newSpeed = math.max(flatVel:Length() - frictionThisFrame, 0)
+			if newSpeed < minSlideSpeed then
+				newSpeed = 0
+				state.slideActive = false
+				StopSlideLoopSound()
+			end
+
+			if flatVel:LengthSqr() > 0.001 then
+				flatVel:Normalize()
+				flatVel = flatVel * newSpeed
+			end
+
+			-- Set new velocity
+			ply:SetLocalVelocity(flatVel + Vector(0, 0, plyVel.z))
 		end
 
-		local flatDir = Vector(vel.x, vel.y, 0)
+		-- Send normalized direction to server
+		local flatDir = flatVel
 		if flatDir:LengthSqr() > 0.001 then flatDir:Normalize() end
 		net.Start("vrmod_slide_sync")
-		net.WriteBool(isLow)
+		net.WriteBool(state.slideActive)
 		net.WriteVector(flatDir)
 		net.SendToServer()
 	end
 
+	-- Expose functions to ctx
 	if isfunction(ctx.setStopSlideLoopSound) then ctx.setStopSlideLoopSound(StopSlideLoopSound) end
 	if isfunction(ctx.setEnsureSlideLoopSound) then ctx.setEnsureSlideLoopSound(EnsureSlideLoopSound) end
 	if isfunction(ctx.setUpdateSlide) then ctx.setUpdateSlide(UpdateSlide) end

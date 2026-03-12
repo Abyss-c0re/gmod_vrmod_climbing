@@ -1611,6 +1611,9 @@ local function BuildTabSlide(form)
 	form:CheckBox("Play slide sounds", "vrmod_slide_sounds")
 	sh = form:NumSlider("Slide sound volume", "vrmod_slide_sound_volume", 0, 1, 2)
 	sh:SetTooltip("Slide sound loudness.")
+	-- New friction slider
+	sh = form:NumSlider("Slide friction", "sv_vrmod_slide_friction", 0, 600, 0)
+	sh:SetTooltip("Friction applied while sliding. Higher values slow down the slide.")
 end
 
 local function BuildTabbedSettings(parent)
