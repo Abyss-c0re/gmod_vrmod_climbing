@@ -1,5 +1,6 @@
 g_VR = g_VR or {}
 vrmod = vrmod or {}
+vrmod.climbing = vrmod.climbing or {}
 local cvBindMode = CreateClientConVar("vrmod_brushclimb_bind_mode", "0", true, false, "0=Grip+Trigger, 1=Grip, 2=Trigger", 0, 2)
 local cvEnable = CreateClientConVar("vrmod_brushclimb_enable", "1", true, false, "Enable VRMod brush climbing", 0, 1)
 local cvGrabDistance = CreateClientConVar("vrmod_brushclimb_grab_distance", "22", true, false, "Brush grab trace range", 4, 48)
@@ -53,7 +54,7 @@ local defaultPresetName = isstring(presetModule.defaultPresetName) and string.Tr
 local cvSelectedPreset = CreateClientConVar("vrmod_brushclimb_selected_preset", defaultPresetName, true, false, "Last selected local VRModClimbing preset")
 local PRESET_DATA_DIR = "vrmod_climbing"
 local LEGACY_PRESET_DATA_PATH = "vrmod_brushclimb/presets.json"
-local PRESET_CVARS = {"vrmod_brushclimb_bind_mode", "vrmod_brushclimb_enable", "vrmod_brushclimb_grab_distance", "vrmod_brushclimb_launch_mult", "vrmod_brushclimb_launch_min", "vrmod_brushclimb_launch_max", "vrmod_brushclimb_sounds", "vrmod_brushclimb_sound_volume", "vrmod_brushclimb_debug", "vrmod_brushclimb_debug_text", "vrmod_brushclimb_hand_inset", "vrmod_brushclimb_wall_push_dist", "vrmod_brushclimb_camera_collision", "vrmod_brushclimb_palm_offset_forward", "vrmod_brushclimb_palm_offset_right", "vrmod_brushclimb_palm_offset_up", "vrmod_brushclimb_palm_offset_forward_right", "vrmod_brushclimb_palm_offset_right_right", "vrmod_brushclimb_palm_offset_up_right", "vrmod_wallrun_hand_range", "vrmod_wallrun_bind_mode", "vrmod_wallrun_cooldown", "vrmod_wallrun_air_regen", "vrmod_wallrun_look_max_dot", "vrmod_wallrun_sounds", "vrmod_wallrun_sound_volume", "vrmod_wallrun_sound_interval", "vrmod_brushclimb_allow_walls", "vrmod_brushclimb_allow_ceilings", "vrmod_brushclimb_allow_ledges", "vrmod_brushclimb_allow_floors", "vrmod_brushclimb_allow_doors", "vrmod_brushclimb_allow_pushable", "vrmod_brushclimb_allow_toggleable", "vrmod_brushclimb_allow_ladders", "vrmod_slide_enable", "vrmod_slide_head_height", "vrmod_slide_sounds", "vrmod_slide_sound_volume", "vrmod_brushclimb_assist_enable", "vrmod_brushclimb_assist_strength", "vrmod_brushclimb_doorbash_enable", "vrmod_brushclimb_doorbash_speed", "vrmod_brushclimb_doorbash_range", "vrmod_brushclimb_doorbash_cooldown", "vrmod_brushclimb_armswing_jump_enable", "vrmod_brushclimb_armswing_jump_speed", "vrmod_brushclimb_armswing_jump_cooldown",}
+local PRESET_CVARS = {"vrmod_brushclimb_bind_mode", "vrmod_brushclimb_enable", "vrmod_brushclimb_grab_distance", "vrmod_brushclimb_launch_mult", "vrmod_brushclimb_launch_min", "vrmod_brushclimb_launch_max", "vrmod_brushclimb_sounds", "vrmod_brushclimb_sound_volume", "vrmod_brushclimb_debug", "vrmod_brushclimb_debug_text", "vrmod_brushclimb_hand_inset", "vrmod_brushclimb_wall_push_dist", "vrmod_brushclimb_camera_collision", "vrmod_brushclimb_palm_offset_forward", "vrmod_brushclimb_palm_offset_right", "vrmod_brushclimb_palm_offset_up", "vrmod_brushclimb_palm_offset_forward_right", "vrmod_brushclimb_palm_offset_right_right", "vrmod_brushclimb_palm_offset_up_right", "vrmod_wallrun_hand_range", "vrmod_wallrun_bind_mode", "vrmod_wallrun_cooldown", "vrmod_wallrun_air_regen", "vrmod_wallrun_look_max_dot", "vrmod_wallrun_sounds", "vrmod_wallrun_sound_volume", "vrmod_wallrun_sound_interval", "vrmod_brushclimb_allow_walls", "vrmod_brushclimb_allow_ceilings", "vrmod_brushclimb_allow_ledges", "vrmod_brushclimb_allow_floors", "vrmod_brushclimb_allow_doors", "vrmod_brushclimb_allow_pushable", "vrmod_brushclimb_allow_toggleable", "vrmod_brushclimb_allow_ladders", "vrmod_slide_enable", "vrmod_slide_head_height", "vrmod_slide_sounds", "vrmod_slide_sound_volume", "vrmod_brushclimb_assist_enable", "vrmod_brushclimb_assist_strength", "vrmod_brushclimb_doorbash_enable", "vrmod_brushclimb_doorbash_speed", "vrmod_brushclimb_doorbash_range", "vrmod_brushclimb_doorbash_cooldown", "vrmod_brushclimb_armswing_jump_enable", "vrmod_brushclimb_armswing_jump_speed", "vrmod_brushclimb_armswing_jump_cooldown", }
 local presetStore = {
 	custom = {},
 }
@@ -351,7 +352,7 @@ local state = {
 
 local liveInput = {}
 -- Global API
-function vrmod.climbing()
+function vrmod.climbing.GetState()
 	return {
 		state = state,
 		liveInput = liveInput
@@ -363,7 +364,6 @@ local releaseSounds = {"vrclimb/release1.wav", "vrclimb/release2.wav", "vrclimb/
 local wallrunSounds = {"vrclimb/footsteps/concrete/me_footsteps_concrete_grit_wallrun_fast1.wav", "vrclimb/footsteps/concrete/me_footsteps_concrete_grit_wallrun_fast2.wav", "vrclimb/footsteps/concrete/me_footsteps_concrete_grit_wallrun_fast3.wav", "vrclimb/footsteps/concrete/me_footsteps_concrete_grit_wallrun_fast5.wav",}
 local slideStartSounds = {"vrclimb/slide/concrete/me_concrete_slide1.wav", "vrclimb/slide/concrete/me_concrete_slide2.wav", "vrclimb/slide/concrete/me_concrete_slide3.wav", "vrclimb/slide/concrete/me_concrete_slide4.wav",}
 local slideLoopSoundPath = "vrclimb/slide/me_footstep_concreteslideloop.wav"
-local slideLoopPatch = nil
 local traceDirsLocal = {Vector(1, 0, 0), Vector(-1, 0, 0), Vector(0, 1, 0), Vector(0, -1, 0), Vector(0, 0, 1), Vector(0, 0, -1), Vector(1, 1, 0), Vector(1, -1, 0), Vector(-1, 1, 0), Vector(-1, -1, 0), Vector(1, 0, 1), Vector(1, 0, -1), Vector(-1, 0, 1), Vector(-1, 0, -1), Vector(0, 1, 1), Vector(0, 1, -1), Vector(0, -1, 1), Vector(0, -1, -1), Vector(1, 1, 1), Vector(1, 1, -1), Vector(1, -1, 1), Vector(1, -1, -1), Vector(-1, 1, 1), Vector(-1, 1, -1), Vector(-1, -1, 1), Vector(-1, -1, -1),}
 local traceDirsWorld = {Vector(0, 0, -1), Vector(0, 0, 1), Vector(1, 0, 0), Vector(-1, 0, 0), Vector(0, 1, 0), Vector(0, -1, 0), Vector(1, 1, 0):GetNormalized(), Vector(1, -1, 0):GetNormalized(), Vector(-1, 1, 0):GetNormalized(), Vector(-1, -1, 0):GetNormalized(), Vector(1, 0, -1):GetNormalized(), Vector(-1, 0, -1):GetNormalized(), Vector(0, 1, -1):GetNormalized(), Vector(0, -1, -1):GetNormalized(),}
 local clientNudgeDirs = {Vector(0, 0, 1), Vector(0, 0, -1), Vector(1, 0, 0), Vector(-1, 0, 0), Vector(0, 1, 0), Vector(0, -1, 0), Vector(1, 1, 0):GetNormalized(), Vector(1, -1, 0):GetNormalized(), Vector(-1, 1, 0):GetNormalized(), Vector(-1, -1, 0):GetNormalized(),}

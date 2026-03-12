@@ -6,6 +6,8 @@ if SERVER then
 	util.AddNetworkString("vrmod_slide_sync")
 	util.AddNetworkString("vrmod_brush_doorbash")
 	util.AddNetworkString("vrmod_brush_armswing_jump")
+	vrmod = vrmod or {}
+	vrmod.climbing = vrmod.climbing or {}
 	local svLedgeNormalMin = CreateConVar("sv_vrmod_brushclimb_ledge_normal_min", "0.55", {FCVAR_ARCHIVE, FCVAR_NOTIFY, FCVAR_REPLICATED}, "Minimum surface normal Z to classify as a ledge (below this = wall)", 0, 1)
 	local svFloorNormalMin = CreateConVar("sv_vrmod_brushclimb_floor_normal_min", "0.85", {FCVAR_ARCHIVE, FCVAR_NOTIFY, FCVAR_REPLICATED}, "Minimum surface normal Z to classify as a floor (above = floor, below = ledge)", 0, 1)
 	local svCeilNormalMax = CreateConVar("sv_vrmod_brushclimb_ceil_normal_max", "-0.55", {FCVAR_ARCHIVE, FCVAR_NOTIFY, FCVAR_REPLICATED}, "Maximum surface normal Z to classify as a ceiling", -1, 0)
@@ -109,6 +111,17 @@ if SERVER then
 	local duckGrace = 0.35
 	local maxSyncDistSqr = 300 * 300
 	local nudgeDirs = {Vector(0, 0, 1), Vector(0, 0, -1), Vector(1, 0, 0), Vector(-1, 0, 0), Vector(0, 1, 0), Vector(0, -1, 0), Vector(1, 1, 0):GetNormalized(), Vector(1, -1, 0):GetNormalized(), Vector(-1, 1, 0):GetNormalized(), Vector(-1, -1, 0):GetNormalized(),}
+	--API
+	function vrmod.climbing.GetState(ply)
+		return {
+			holding = isBrushHolding[ply] == true,
+			wallrunning = vrWallRunWants[ply] ~= nil,
+			sliding = isSliding[ply] == true,
+			slideSpeed = slideSpeed[ply] or 0,
+			fallProtected = (fallProtectUntil[ply] or 0) > CurTime()
+		}
+	end
+
 	local function CanFitAt(ply, pos, mins, maxs)
 		local tr = util.TraceHull({
 			start = pos,
