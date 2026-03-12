@@ -420,6 +420,13 @@ local state = {
 }
 
 local liveInput = {}
+-- Global API
+function vrmod.climbing()
+	return {
+		state = state,
+		liveInput = liveInput
+	}
+end
 
 local climbSounds = {
 	"vrclimb/handstep1.wav",
