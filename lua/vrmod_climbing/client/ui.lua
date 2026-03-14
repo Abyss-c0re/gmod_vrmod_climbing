@@ -1,5 +1,5 @@
 if SERVER then return end
-local presetModule = include("vrmod_brush_climbing/client/presets.lua") or {}
+local presetModule = include("vrmod_climbing/client/presets.lua") or {}
 local defaultPresetName = isstring(presetModule.defaultPresetName) and string.Trim(presetModule.defaultPresetName) ~= "" and presetModule.defaultPresetName or "Default"
 local cvSelectedPreset = CreateClientConVar("vrmod_brushclimb_selected_preset", defaultPresetName, true, false, "Last selected local VRModClimbing preset")
 local PRESET_DATA_DIR = "vrmod_climbing"
@@ -25,6 +25,18 @@ local MIRRORED_PERMISSION_SERVER_CVARS = {}
 local mirroredClientSyncMute = {}
 for clientCvarName, serverCvarName in pairs(MIRRORED_PERMISSION_CVARS) do
     MIRRORED_PERMISSION_SERVER_CVARS[serverCvarName] = clientCvarName
+end
+
+local function GetServerConVarBool(name, fallback)
+    local cv = GetConVar(name)
+    if not cv then return fallback end
+    return cv:GetBool()
+end
+
+local function GetServerConVarFloat(name, fallback)
+    local cv = GetConVar(name)
+    if not cv then return fallback end
+    return cv:GetFloat()
 end
 
 local function SetMirroredClientPermission(cvarName, enabled)

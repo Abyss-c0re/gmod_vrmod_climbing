@@ -411,7 +411,7 @@ local UpdateSlide
 local GetTriggerDown
 local GetGripDown
 local AnyHandHolding
-local wallrunModule = include("vrmod_brush_climbing/client/wallrun.lua")
+local wallrunModule = include("vrmod_climbing/client/wallrun.lua")
 if isfunction(wallrunModule) then
 	wallrunModule({
 		state = state,
@@ -458,7 +458,7 @@ if isfunction(wallrunModule) then
 	})
 end
 
-local slideModule = include("vrmod_brush_climbing/client/slide.lua")
+local slideModule = include("vrmod_climbing/client/slide.lua")
 if isfunction(slideModule) then
 	slideModule({
 		state = state,
