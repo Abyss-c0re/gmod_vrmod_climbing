@@ -147,7 +147,7 @@ local state = {
 	wallRunActive = false,
 	wallRunCooldownUntil = 0,
 	wallRunHand = nil,
-	wallRunWasOnGround = true, -- tracks ground state for landing detection
+	wallRunWasOnGround = true,
 	nextWallRunSoundAt = 0,
 	slideActive = false,
 	nextDoorBashAt = 0,
@@ -260,27 +260,16 @@ local function IsClimbableHit(trace)
 	if not trace or not trace.Hit then return false end
 	if trace.HitWorld then return true end
 	local ent = trace.Entity
-	if not IsValid(ent) then
-		-- Some BSP/detail brush hits can come through without a valid entity clientside.
-		-- If it's a solid hit at all, allow it as climbable geometry.
-		return true
-	end
-
+	if not IsValid(ent) then return true end
 	if ent:GetSolid() == SOLID_NONE then return false end
 	local cls = ent:GetClass() or ""
-	-- Doors: server must permit AND client must permit
 	local isDoor = cls == "func_door" or cls == "func_door_rotating" or cls == "prop_door_rotating"
 	if isDoor then return GetServerConVarBool("sv_vrmod_brushclimb_allow_doors", false) and cvAllowDoors:GetBool() end
-	-- func_pushable: server must permit AND client must permit
 	if cls == "func_pushable" then return GetServerConVarBool("sv_vrmod_brushclimb_allow_pushable", false) and cvAllowPushable:GetBool() end
-	-- Toggleable brushes: server must permit AND client must permit
 	local isToggleable = cls == "func_button" or cls == "func_rot_button" or cls == "momentary_rot_button" or cls == "momentary_door"
 	if isToggleable then return GetServerConVarBool("sv_vrmod_brushclimb_allow_toggleable", false) and cvAllowToggleable:GetBool() end
-	-- Static props are safe for grabbing.
 	if cls == "prop_static" then return true end
-	-- Dynamic props are allowed only when effectively static.
 	if cls == "prop_dynamic" then return ent:GetMoveType() == MOVETYPE_NONE end
-	-- Physics props stay blocked (moving networked bodies desync badly).
 	if cls == "prop_physics" then return false end
 	if string.StartWith(cls, "func_") then return true end
 	local model = ent:GetModel()
@@ -302,8 +291,6 @@ local function IsLadderSurface(trace)
 	return bit.band(util.PointContents(samplePos), CONTENTS_LADDER) ~= 0
 end
 
--- Returns "floor", "ledge", "wall", or "ceiling" based on the surface normal.
--- Thresholds read from replicated server convars so clients stay in sync.
 local function GetSurfaceType(normal)
 	if not normal then return "wall" end
 	local z = normal.z
@@ -332,8 +319,6 @@ local function GetTraceSurfaceType(trace)
 	local wallFlat = Vector(trace.HitNormal.x, trace.HitNormal.y, 0)
 	if wallFlat:LengthSqr() < 0.0001 then return surfaceType end
 	wallFlat:Normalize()
-	-- If we hit a vertical face, probe just above and slightly inside it.
-	-- A walkable top face here means the wall hit is really a ledge/lip.
 	local probeStart = trace.HitPos + Vector(0, 0, 12) - wallFlat * 3
 	local topTrace = util.TraceHull({
 		start = probeStart,
@@ -435,7 +420,6 @@ if isfunction(wallrunModule) then
 		cvLaunchMult = cvLaunchMult,
 		cvLaunchMin = cvLaunchMin,
 		cvLaunchMax = cvLaunchMax,
-		-- Defer function resolution so module init order cannot capture nil upvalues.
 		GetGripDown = function(...)
 			if isfunction(GetGripDown) then return GetGripDown(...) end
 			return false
@@ -539,7 +523,6 @@ local function FindGrabSurface(handPose, handId)
 	local range = cvGrabDistance:GetFloat()
 	local startPos = GetHandCenterPos(handPose, handId)
 	local traceRadius = 1.6
-	-- Surface type permissions: both server AND client must allow
 	local svWalls = GetServerConVarBool("sv_vrmod_brushclimb_allow_walls", true)
 	local svCeilings = GetServerConVarBool("sv_vrmod_brushclimb_allow_ceilings", true)
 	local svLedges = GetServerConVarBool("sv_vrmod_brushclimb_allow_ledges", true)
@@ -565,9 +548,6 @@ local function FindGrabSurface(handPose, handId)
 			})
 		end
 
-		-- Ladders (func_ladder, func_useableladder, func_climbable, CONTENTS_LADDER) always
-		-- bypass surface-type filters and entity filters; they are always climbable unless
-		-- the client explicitly opts out with allow_ladders = 0.
 		local valid = false
 		local surfType = "wall"
 		if trace and trace.Hit then
@@ -576,7 +556,6 @@ local function FindGrabSurface(handPose, handId)
 				valid = cvAllowLadders:GetBool()
 				surfType = "ledge"
 			else
-				-- Surface type filter (server ceiling AND client preference)
 				surfType = GetTraceSurfaceType(trace)
 				local surfaceAllowed
 				if surfType == "floor" then
@@ -585,7 +564,7 @@ local function FindGrabSurface(handPose, handId)
 					surfaceAllowed = svLedges and cvAllowLedges:GetBool()
 				elseif surfType == "ceiling" then
 					surfaceAllowed = svCeilings and cvAllowCeilings:GetBool()
-				else -- wall
+				else
 					surfaceAllowed = svWalls and cvAllowWalls:GetBool()
 				end
 
@@ -653,9 +632,10 @@ local function SyncServerPos(pos, holding, force)
 	if not IsValid(LocalPlayer()) then return end
 	local now = CurTime()
 	if not force then
-		local minInterval = 0.05
+		local minInterval = holding and 0.15 or 0.05
 		if now - state.lastSyncTime < minInterval then return end
-		if state.lastSyncPos and state.lastSyncPos:DistToSqr(pos) < 4 then return end
+		local distThreshold = holding and 6 or 4
+		if state.lastSyncPos and state.lastSyncPos:DistToSqr(pos) < distThreshold then return end
 	end
 
 	state.lastSyncTime = now
@@ -773,7 +753,6 @@ local function GrabHand(handId)
 	handState.grabStartTime = CurTime()
 	handState.frozenHandAng = Angle(pose.ang.pitch, pose.ang.yaw, pose.ang.roll)
 	handState.secondaryGrabBlend = hadOtherHandHolding
-	-- Smoothly pull from the grabbed hand pose to the wall anchor to avoid sudden snaps.
 	handState.originAtGrab = Vector(g_VR.origin.x, g_VR.origin.y, g_VR.origin.z)
 	handState.localHandAtGrab = handState.anchorStartPos - g_VR.origin
 	PickSound(climbSounds)
@@ -905,11 +884,33 @@ local function UpdateClimbing(renderPass)
 	local frameNum = FrameNumber()
 	if state.lastUpdateFrame == frameNum then return end
 	state.lastUpdateFrame = frameNum
+	-- Block climbing while in vehicle (auto-release hands cleanly)
+	local ply = LocalPlayer()
+	if IsValid(ply) and ply:InVehicle() then
+		if AnyHandHolding() then
+			for handId = 1, 2 do
+				if state.hands[handId].holding then ReleaseHand(handId, false) end
+			end
+
+			UpdateLocomotionState()
+		end
+		return
+	end
+
 	for handId, handState in pairs(state.hands) do
 		local handCfg = hands[handId]
 		handState.gripDown = GetGripDown(handCfg)
 		handState.triggerDown = GetTriggerDown(handCfg)
-		if cvDebug:GetBool() and not handState.holding then
+		local wantsGrab = WantsGrab(handId)
+		if wantsGrab and not handState.want then
+			GrabHand(handId) -- FindGrabSurface called here only
+		elseif not wantsGrab and handState.want then
+			ReleaseHand(handId, true)
+		end
+
+		handState.want = wantsGrab
+		-- Debug preview only when not attempting grab (prevents double trace call)
+		if cvDebug:GetBool() and not handState.holding and not wantsGrab then
 			local pose = g_VR.tracking[handCfg.poseName]
 			if pose then
 				local trace, debugTraces = FindGrabSurface(pose, handId)
@@ -918,14 +919,6 @@ local function UpdateClimbing(renderPass)
 			end
 		end
 
-		local wantsGrab = WantsGrab(handId)
-		if wantsGrab and not handState.want then
-			GrabHand(handId)
-		elseif not wantsGrab and handState.want then
-			ReleaseHand(handId, true)
-		end
-
-		handState.want = wantsGrab
 		if not handState.holding and not wantsGrab then
 			local pose = g_VR.tracking[handCfg.poseName]
 			if pose then TryDoorBash(pose, handId) end
