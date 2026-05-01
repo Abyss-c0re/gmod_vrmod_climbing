@@ -461,9 +461,9 @@ local function BuildTabClimbing(form)
     combo:AddChoice("Grip + Trigger")
     combo:AddChoice("Grip only")
     combo:AddChoice("Trigger only")
-    combo.OnSelect = function(_, index) cvBindMode:SetInt(index - 1) end
+    combo.OnSelect = function(_, index) GetConVar("vrmod_brushclimb_bind_mode"):SetInt(index - 1) end
     combo.Think = function(self)
-        local mode = cvBindMode:GetInt()
+        local mode = GetConVar("vrmod_brushclimb_bind_mode"):GetInt()
         if self._mode ~= mode then
             self._mode = mode
             self:ChooseOptionID(mode + 1)
@@ -556,9 +556,9 @@ local function BuildTabWallRun(form)
     wrCombo:DockMargin(115, 0, 0, 5)
     wrCombo:AddChoice("Grip")
     wrCombo:AddChoice("Trigger")
-    wrCombo.OnSelect = function(_, index) cvWallrunBindMode:SetInt(index - 1) end
+    wrCombo.OnSelect = function(_, index) GetConVar("vrmod_wallrun_bind_mode"):SetInt(index - 1) end
     wrCombo.Think = function(self)
-        local mode = cvWallrunBindMode:GetInt()
+        local mode = GetConVar("vrmod_wallrun_bind_mode"):GetInt()
         if self._mode ~= mode then
             self._mode = mode
             self:ChooseOptionID(mode + 1)
