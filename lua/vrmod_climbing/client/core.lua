@@ -20,6 +20,7 @@ local cvPalmOffsetUp = CreateClientConVar("vrmod_brushclimb_palm_offset_up", "-0
 local cvPalmOffsetForwardRight = CreateClientConVar("vrmod_brushclimb_palm_offset_forward_right", "3.30", true, false, "Right hand palm center forward offset", -8, 8)
 local cvPalmOffsetRightRight = CreateClientConVar("vrmod_brushclimb_palm_offset_right_right", "2.32", true, false, "Right hand palm center right offset", -8, 8)
 local cvPalmOffsetUpRight = CreateClientConVar("vrmod_brushclimb_palm_offset_up_right", "0.05", true, false, "Right hand palm center up offset", -8, 8)
+local cvWallrunEnable = CreateClientConVar("vrmod_wallrun_enable", "1", true, false, "Enable wall running", 0, 1)
 local cvWallrunHandRange = CreateClientConVar("vrmod_wallrun_hand_range", "20", true, false, "How close hand must be to wall for wall run", 4, 48)
 local cvWallrunBindMode = CreateClientConVar("vrmod_wallrun_bind_mode", "1", true, false, "0=Grip, 1=Trigger", 0, 1)
 local cvWallrunCooldown = CreateClientConVar("vrmod_wallrun_cooldown", "0.5", true, false, "Seconds before wall run can trigger again", 0, 5)
@@ -409,6 +410,7 @@ if isfunction(wallrunModule) then
 		wallrunSounds = wallrunSounds,
 		releaseSounds = releaseSounds,
 		cvUseSounds = cvUseSounds,
+		cvWallrunEnable = cvWallrunEnable,
 		cvWallrunBindMode = cvWallrunBindMode,
 		cvWallrunCooldown = cvWallrunCooldown,
 		cvWallrunAirRegen = cvWallrunAirRegen,

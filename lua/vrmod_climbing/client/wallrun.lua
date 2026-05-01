@@ -26,6 +26,9 @@ return function(ctx)
 	local GetHandCenterPos = ctx.GetHandCenterPos
 	local AnyHandHolding = ctx.AnyHandHolding
 	local PickSound = ctx.PickSound
+	-- Wall run enable cvar (created here if not passed from main)
+	local cvWallrunEnable = ctx.cvWallrunEnable
+	if not cvWallrunEnable or not isfunction(cvWallrunEnable.GetBool) then cvWallrunEnable = CreateClientConVar("vrmod_wallrun_enable", "1", true, false, "Enable wall running", 0, 1) end
 	local function IsLookingAlongWall(normal)
 		local ply = LocalPlayer()
 		if not IsValid(ply) or not normal then return false end
@@ -111,7 +114,11 @@ return function(ctx)
 	local function UpdateWallRun()
 		if not g_VR or not g_VR.tracking then return end
 		local ply = LocalPlayer()
-		if not IsValid(ply) then return end
+		if not IsValid(ply) or ply:InVehicle() or not cvWallrunEnable:GetBool() then
+			StopWallRunSignal()
+			return
+		end
+
 		local onGround = ply:IsOnGround()
 		if onGround and not state.wallRunWasOnGround then state.wallRunCooldownUntil = 0 end
 		if not onGround and not state.wallRunActive then
