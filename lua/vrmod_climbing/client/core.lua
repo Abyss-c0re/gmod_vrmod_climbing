@@ -180,7 +180,6 @@ local wallrunSounds = {"vrclimb/footsteps/concrete/me_footsteps_concrete_grit_wa
 local slideStartSounds = {"vrclimb/slide/concrete/me_concrete_slide1.wav", "vrclimb/slide/concrete/me_concrete_slide2.wav", "vrclimb/slide/concrete/me_concrete_slide3.wav", "vrclimb/slide/concrete/me_concrete_slide4.wav",}
 local slideLoopSoundPath = "vrclimb/slide/me_footstep_concreteslideloop.wav"
 local traceDirsLocal = {Vector(1, 0, 0), Vector(-1, 0, 0), Vector(0, 1, 0), Vector(0, -1, 0), Vector(0, 0, 1), Vector(0, 0, -1), Vector(1, 1, 0), Vector(1, -1, 0), Vector(-1, 1, 0), Vector(-1, -1, 0), Vector(1, 0, 1), Vector(1, 0, -1), Vector(-1, 0, 1), Vector(-1, 0, -1), Vector(0, 1, 1), Vector(0, 1, -1), Vector(0, -1, 1), Vector(0, -1, -1), Vector(1, 1, 1), Vector(1, 1, -1), Vector(1, -1, 1), Vector(1, -1, -1), Vector(-1, 1, 1), Vector(-1, 1, -1), Vector(-1, -1, 1), Vector(-1, -1, -1),}
-local traceDirsWorld = {Vector(0, 0, -1), Vector(0, 0, 1), Vector(1, 0, 0), Vector(-1, 0, 0), Vector(0, 1, 0), Vector(0, -1, 0), Vector(1, 1, 0):GetNormalized(), Vector(1, -1, 0):GetNormalized(), Vector(-1, 1, 0):GetNormalized(), Vector(-1, -1, 0):GetNormalized(), Vector(1, 0, -1):GetNormalized(), Vector(-1, 0, -1):GetNormalized(), Vector(0, 1, -1):GetNormalized(), Vector(0, -1, -1):GetNormalized(),}
 local clientNudgeDirs = {Vector(0, 0, 1), Vector(0, 0, -1), Vector(1, 0, 0), Vector(-1, 0, 0), Vector(0, 1, 0), Vector(0, -1, 0), Vector(1, 1, 0):GetNormalized(), Vector(1, -1, 0):GetNormalized(), Vector(-1, 1, 0):GetNormalized(), Vector(-1, -1, 0):GetNormalized(),}
 local function CanClientFitAt(ply, pos, useDuck)
 	if not IsValid(ply) then return false end
@@ -292,12 +291,12 @@ local function IsLadderSurface(trace)
 	return bit.band(util.PointContents(samplePos), CONTENTS_LADDER) ~= 0
 end
 
-local function GetSurfaceType(normal)
+local function GetSurfaceType(normal, floorMin, ledgeMin, ceilMax)
 	if not normal then return "wall" end
 	local z = normal.z
-	local floorMin = math.Clamp(GetServerConVarFloat("sv_vrmod_brushclimb_floor_normal_min", 0.85), 0, 1)
-	local ledgeMin = math.Clamp(GetServerConVarFloat("sv_vrmod_brushclimb_ledge_normal_min", 0.55), 0, 1)
-	local ceilMax = math.Clamp(GetServerConVarFloat("sv_vrmod_brushclimb_ceil_normal_max", -0.55), -1, 0)
+	floorMin = floorMin or math.Clamp(GetServerConVarFloat("sv_vrmod_brushclimb_floor_normal_min", 0.85), 0, 1)
+	ledgeMin = ledgeMin or math.Clamp(GetServerConVarFloat("sv_vrmod_brushclimb_ledge_normal_min", 0.55), 0, 1)
+	ceilMax = ceilMax or math.Clamp(GetServerConVarFloat("sv_vrmod_brushclimb_ceil_normal_max", -0.55), -1, 0)
 	if z >= floorMin then return "floor" end
 	if z >= ledgeMin then return "ledge" end
 	if z <= ceilMax then return "ceiling" end
@@ -312,11 +311,11 @@ local function GetGrabSurfacePriority(surfaceType)
 	return 0
 end
 
-local function GetTraceSurfaceType(trace)
+local function GetTraceSurfaceType(trace, floorMin, ledgeMin, ceilMax)
 	if not trace or not trace.Hit then return "wall" end
-	local surfaceType = GetSurfaceType(trace.HitNormal)
+	local surfaceType = GetSurfaceType(trace.HitNormal, floorMin, ledgeMin, ceilMax)
 	if surfaceType ~= "wall" then return surfaceType end
-	local floorMin = math.Clamp(GetServerConVarFloat("sv_vrmod_brushclimb_floor_normal_min", 0.85), 0, 1)
+	floorMin = floorMin or math.Clamp(GetServerConVarFloat("sv_vrmod_brushclimb_floor_normal_min", 0.85), 0, 1)
 	local wallFlat = Vector(trace.HitNormal.x, trace.HitNormal.y, 0)
 	if wallFlat:LengthSqr() < 0.0001 then return surfaceType end
 	wallFlat:Normalize()
@@ -530,13 +529,36 @@ local function FindGrabSurface(handPose, handId)
 	local svLedges = GetServerConVarBool("sv_vrmod_brushclimb_allow_ledges", true)
 	local svFloors = GetServerConVarBool("sv_vrmod_brushclimb_allow_floors", true)
 	local debugTraces = cvDebug:GetBool() and {} or nil
+	-- Cached thresholds (avoids repeated GetServerConVarFloat calls inside GetTraceSurfaceType)
+	local floorMin = math.Clamp(GetServerConVarFloat("sv_vrmod_brushclimb_floor_normal_min", 0.85), 0, 1)
+	local ledgeMin = math.Clamp(GetServerConVarFloat("sv_vrmod_brushclimb_ledge_normal_min", 0.55), 0, 1)
+	local ceilMax = math.Clamp(GetServerConVarFloat("sv_vrmod_brushclimb_ceil_normal_max", -0.55), -1, 0)
+	-- Prioritized directions (most useful first) + early exit when we find floor/ledge
+	local prioritizedDirs = {
+		-- Forward / primary
+		Vector(1, 0, 0),
+		Vector(0, 0, 1),
+		Vector(0, 1, 0),
+		-- Diagonals (very useful for ledges/walls)
+		Vector(1, 1, 0):GetNormalized(),
+		Vector(1, -1, 0):GetNormalized(),
+		Vector(1, 0, 1):GetNormalized(),
+		Vector(0, 1, 1):GetNormalized(),
+		-- Backups
+		Vector(-1, 0, 0),
+		Vector(0, 0, -1),
+		Vector(0, -1, 0),
+		Vector(-1, 1, 0):GetNormalized(),
+		Vector(-1, -1, 0):GetNormalized()
+	}
+
 	local function EvaluateTrace(dir)
 		local endPos = startPos + dir * range
 		local trace = util.TraceLine({
 			start = startPos,
 			endpos = endPos,
 			mask = MASK_SOLID,
-			filter = LocalPlayer(),
+			filter = LocalPlayer()
 		})
 
 		if not trace.Hit then
@@ -546,7 +568,7 @@ local function FindGrabSurface(handPose, handId)
 				mins = Vector(-traceRadius, -traceRadius, -traceRadius),
 				maxs = Vector(traceRadius, traceRadius, traceRadius),
 				mask = MASK_SOLID,
-				filter = LocalPlayer(),
+				filter = LocalPlayer()
 			})
 		end
 
@@ -558,8 +580,8 @@ local function FindGrabSurface(handPose, handId)
 				valid = cvAllowLadders:GetBool()
 				surfType = "ledge"
 			else
-				surfType = GetTraceSurfaceType(trace)
-				local surfaceAllowed
+				surfType = GetTraceSurfaceType(trace, floorMin, ledgeMin, ceilMax)
+				local surfaceAllowed = false
 				if surfType == "floor" then
 					surfaceAllowed = svFloors and cvAllowFloor:GetBool()
 				elseif surfType == "ledge" then
@@ -581,7 +603,7 @@ local function FindGrabSurface(handPose, handId)
 				hit = trace and trace.Hit or false,
 				hitPos = trace and trace.HitPos or endPos,
 				valid = valid,
-				surfaceType = surfType,
+				surfaceType = surfType
 			}
 		end
 
@@ -593,16 +615,19 @@ local function FindGrabSurface(handPose, handId)
 				bestDist = dist
 				bestTrace = trace
 			end
+
+			-- Early exit: if we already found a floor or ledge, no need to keep searching
+			if priority >= 3 then
+				return true -- signal to stop
+			end
 		end
+		return false
 	end
 
-	for i = 1, #traceDirsLocal do
-		local dir = LocalToWorld(traceDirsLocal[i]:GetNormalized(), zeroAng, zeroVec, handPose.ang)
-		EvaluateTrace(dir)
-	end
-
-	for i = 1, #traceDirsWorld do
-		EvaluateTrace(traceDirsWorld[i])
+	for i = 1, #prioritizedDirs do
+		local dir = LocalToWorld(prioritizedDirs[i], zeroAng, zeroVec, handPose.ang)
+		local shouldStop = EvaluateTrace(dir)
+		if shouldStop then break end
 	end
 	return bestTrace, debugTraces
 end
@@ -904,8 +929,8 @@ local function UpdateClimbing(renderPass)
 		handState.gripDown = GetGripDown(handCfg)
 		handState.triggerDown = GetTriggerDown(handCfg)
 		local wantsGrab = WantsGrab(handId)
-		if wantsGrab and not handState.want then
-			GrabHand(handId) -- FindGrabSurface called here only
+		if wantsGrab and not handState.want and not handState.holding then
+			GrabHand(handId) -- FindGrabSurface called here only (now cheap with 12 directions)
 		elseif not wantsGrab and handState.want then
 			ReleaseHand(handId, true)
 		end
