@@ -1,0 +1,13 @@
+{
+  "title": "[VRMod] Brush Climbing",
+  "type": "tool",
+  "tags": [
+    "fun",
+    "realism",
+    "vr"
+  ],
+  "ignore": [
+    ".gitattributes",
+    "security.md"
+  ]
+}
